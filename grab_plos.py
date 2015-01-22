@@ -1,6 +1,6 @@
 from urllib.parse import urlsplit
 from utils import get_doc_tree_from_url
-from plosarticle import PLOSArticle
+from plos_article import PLOSArticle
 import logging
 import re
 import pathlib
