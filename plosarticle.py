@@ -3,11 +3,7 @@ __author__ = 'ZiYuan'
 from utils import get_doc_tree_from_url
 import logging
 
-
-_logger = logging.getLogger("article")
-_fh = logging.FileHandler("download.log")
-_logger.addHandler(_fh)
-_logger.setLevel(logging.WARNING)
+_logger = logging.getLogger(__name__)
 
 
 class PLOSArticle:

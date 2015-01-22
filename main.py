@@ -7,32 +7,45 @@ from plosarticle import PLOSArticle
 import logging
 import re
 import pathlib
+from multiprocessing.pool import ThreadPool
+import queue
+from threading import Thread
+import os
+
+_log_file = "download.log"
+if os.path.exists(_log_file):
+    os.remove(_log_file)
+logging.basicConfig(level=logging.INFO)
+_logger = logging.getLogger(__name__)
+_logger.addHandler(logging.FileHandler(_log_file, encoding='utf8'))
+
+_article_queue = queue.Queue()
 
 
-_logger = logging.getLogger("main")
-_logger.setLevel(logging.INFO)
-_logger.addHandler(logging.StreamHandler())
-
-
-def parse_article_urls(issue_url):
+def parse_article_urls(issue_url, context=None):
+    add_context = lambda article: article if context is None else (article, context)
     doc_tree = get_doc_tree_from_url(issue_url)
-    div_nodes = doc_tree.xpath("//div[@class='section']")
-    url_base = "http://" + urlsplit(issue_url).netloc
-    article_urls = {}
-    for div in div_nodes:
-        section_name = ""
-        for elem in div.iter("h2"):
-            section_name = elem.text
+    if doc_tree is not None:
+        div_nodes = doc_tree.xpath("//div[@class='section']")
+        url_base = "http://" + urlsplit(issue_url).netloc
+        article_urls = {}
+        for div in div_nodes:
+            section_name = ""
+            for elem in div.iter("h2"):
+                section_name = elem.text
 
-        assert section_name != ""
-        a_nodes = div.xpath(".//a[@title='Read Open Access Article']")
-        a_nodes = [a_node for a_node in a_nodes if a_node.getparent().tag != "li"]
-        hrefs = [node.get("href") for node in a_nodes]
-        for href in hrefs:
-            assert not href.startswith("http")
-        urls = [url_base + href for href in hrefs]
-        article_urls[section_name] = urls
-    return article_urls
+            assert section_name != ""
+            a_nodes = div.xpath(".//a[@title='Read Open Access Article']")
+            a_nodes = [a_node for a_node in a_nodes if a_node.getparent().tag != "li"]
+            hrefs = [node.get("href") for node in a_nodes]
+            for href in hrefs:
+                assert not href.startswith("http")
+            urls = [url_base + href for href in hrefs]
+            article_urls[section_name] = urls
+        return add_context(article_urls)
+    else:
+        _logger.error("Cannot parse the issue page. URL: %s" % issue_url)
+        return add_context(None)
 
 
 def parse_issue_urls(archive_url):
@@ -46,11 +59,11 @@ def parse_issue_urls(archive_url):
         for span_node in span_nodes:
             assert span_node.tag == "span"
         issue_urls[year_node.get("id")] = \
-            [(span_node.text, url_base + a_node.get("href")) for a_node, span_node in zip(a_nodes, span_nodes)]
+            [(url_base + a_node.get("href"), span_node.text) for a_node, span_node in zip(a_nodes, span_nodes)]
     return issue_urls
 
 
-def grab_all_and_save(archive_url, save_to_folder):
+def crawl_article_urls(archive_url, save_to_folder):
     # current_folder == root
     current_folder = pathlib.Path(save_to_folder)
     if not current_folder.exists():
@@ -61,46 +74,54 @@ def grab_all_and_save(archive_url, save_to_folder):
         current_folder = current_folder / year
         if not current_folder.exists():
             current_folder.mkdir()
-        for month, issue_url in issue_urls_list:
-            article_urls_dict = parse_article_urls(issue_url)
-            # current_folder == root/year/month
-            current_folder = current_folder / month
-            if not current_folder.exists():
-                current_folder.mkdir()
-            for section, article_urls_list in article_urls_dict.items():
-                # current_folder == root/year/month/section
-                current_folder = current_folder / section
+        with ThreadPool(processes=len(issue_urls_list)) as pool:
+            article_urls_dict_list = pool.starmap(parse_article_urls, issue_urls_list)
+        for article_urls_dict, month in article_urls_dict_list:
+            if article_urls_dict is not None:
+                # current_folder == root/year/month
+                current_folder = current_folder / month
                 if not current_folder.exists():
                     current_folder.mkdir()
-                articles = [PLOSArticle(url) for url in article_urls_list]
-                for article in articles:
-                    status = article.parse_url()
-                    if status == PLOSArticle.SUCCESS:
-                        file_name = (re.sub(r"[\\/:\*\?\"\<\>\|]", "_", article.title) + ".txt").strip()
-                        try:
-                            with open(str(current_folder / file_name), "w", encoding="utf8") as f:
-                                f.write("\n".join([article.abstract, article.main_text]))
-                        except FileNotFoundError as e:
-                            _logger.error(str(e))
-                        msg = "Saved %s to %s/%s." % (article.title, current_folder, file_name)
-                        _logger.info(msg)
-                # current_folder == root/year/month
+                for section, article_urls_list in article_urls_dict.items():
+                    # current_folder == root/year/month/section
+                    current_folder = current_folder / section
+                    if not current_folder.exists():
+                        current_folder.mkdir()
+                    articles = [PLOSArticle(url) for url in article_urls_list]
+                    for article in articles:
+                        _article_queue.put((article, current_folder))
+                    # current_folder == root/year/month
+                    current_folder = current_folder.parent
+                # current_folder == root/year
                 current_folder = current_folder.parent
-            # current_folder == root/year
-            current_folder = current_folder.parent
         # current_folder == root
         current_folder = current_folder.parent
 
 
+def download_articles_and_save():
+    while True:
+        article, save_to = _article_queue.get()
+        status = article.parse_url()
+        if status == PLOSArticle.SUCCESS:
+            file_name = (re.sub(r"[\\/:\*\?\"\<\>\|\n]", "_", article.title) + ".txt").strip()
+            file_name = re.sub(r"[\t\s]+", " ", file_name)
+            try:
+                with open(str(save_to / file_name), "w", encoding="utf8") as f:
+                    f.write("\n".join([article.abstract, article.main_text]))
+            except FileNotFoundError as e:
+                _logger.error(str(e))
+            msg = "Saved %s to %s/%s." % (article.title, save_to, file_name)
+            _logger.info(msg)
+        _article_queue.task_done()
+
+
 if __name__ == "__main__":
-    grab_all_and_save("http://www.ploscompbiol.org/article/browse/volume", "PLOS")
-    # issue_url = "http://www.ploscompbiol.org/article/browse/issue/info%3Adoi%2F10.1371%2Fissue.pcbi.v04.i04"
-    # article_urls_dict = parse_article_urls(issue_url)
-    # for section, article_urls_list in article_urls_dict.items():
-    #     articles = [Article(url) for url in article_urls_list]
-    #     for article in articles:
-    #         article.parse_url()
-    #         if article.title is not None:
-    #             print(article.title)
-
-
+    t_spider = Thread(target=crawl_article_urls,
+                      args=("http://www.ploscompbiol.org/article/browse/volume", "PLOS"))
+    t_spider.start()
+    n_threads = 10
+    for i in range(n_threads):
+        t_worker = Thread(target=download_articles_and_save)
+        t_worker.start()
+    t_spider.join()
+    _article_queue.join()

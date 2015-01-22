@@ -6,9 +6,7 @@ from urllib.request import Request, urlopen
 from lxml import html
 import logging
 
-
-_logger = logging.getLogger("download_page")
-_logger.setLevel(logging.WARNING)
+_logger = logging.getLogger(__name__)
 
 
 def get_doc_tree_from_url(url, max_attempts=20):
