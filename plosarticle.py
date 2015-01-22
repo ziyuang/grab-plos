@@ -1,6 +1,5 @@
 from utils import get_doc_tree_from_url
 import logging
-import global_logger
 
 _logger = logging.getLogger(__name__)
 

@@ -2,7 +2,6 @@ from urllib.error import URLError, HTTPError
 from urllib.request import Request, urlopen
 from lxml import html
 import logging
-import global_logger
 
 _logger = logging.getLogger(__name__)
 

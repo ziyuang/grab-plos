@@ -8,7 +8,8 @@ import os
 from multiprocessing.pool import ThreadPool
 import queue
 from threading import Thread
-import global_logger
+import argparse
+import time
 
 _logger = logging.getLogger(__name__)
 _article_queue = queue.Queue()
@@ -109,13 +110,31 @@ def download_articles_and_save():
         _article_queue.task_done()
 
 
-# TODO: use sys.argc and sys.argv for the parameters (url, folder, #threads)
 if __name__ == "__main__":
+
+    log_file_default = "%s.log" % time.strftime("%Y-%m-%d-%H-%M-%S", time.gmtime())
+
+    parser = argparse.ArgumentParser(description="Save the articles of a PLOS journal in .txt files",
+                                     formatter_class=argparse.ArgumentDefaultsHelpFormatter)
+    parser.add_argument("--journal-url", metavar="URL",
+                        help="the archive page the journal. "
+                             "Example: http://www.ploscompbiol.org/article/browse/volume",
+                        required=True, default=argparse.SUPPRESS)
+    parser.add_argument("--save-to", metavar="FOLDER", help="the destination folder",
+                        required=True, default=argparse.SUPPRESS)
+    parser.add_argument("--threads", metavar="N", type=int, default=10, help="the number of threads for downloading")
+    parser.add_argument("--log", default=log_file_default, help="the log file")
+    args = parser.parse_args()
+
+    logging.basicConfig(level=logging.INFO,
+                        handlers=[logging.FileHandler(args.log, mode='w', encoding='utf8')])
+
     t_spider = Thread(target=crawl_article_urls,
-                      args=("http://www.ploscompbiol.org/article/browse/volume", "PLOS"))
+                      args=(args.journal_url, args.save_to))
+
     t_spider.start()
-    n_threads = 15
-    for i in range(n_threads):
+
+    for i in range(args.threads):
         t_worker = Thread(target=download_articles_and_save, daemon=True)
         t_worker.start()
     t_spider.join()
