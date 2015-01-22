@@ -2,6 +2,7 @@ __author__ = 'ZiYuan'
 
 from utils import get_doc_tree_from_url
 import logging
+import global_logger
 
 _logger = logging.getLogger(__name__)
 
@@ -25,6 +26,9 @@ class PLOSArticle:
 
     @staticmethod
     def __combine_sections(nodes):
+        if len(nodes) > 0:
+            if nodes[-1].tag == "h2":
+                nodes = nodes[:-1]
         return '\n'.join([node.text_content() for node in nodes])
 
     def parse_url(self):
@@ -48,3 +52,6 @@ class PLOSArticle:
             return PLOSArticle.FAILURE
 
         return PLOSArticle.SUCCESS
+
+    def __str__(self):
+        return "\n".join([self.abstract, self.main_text])

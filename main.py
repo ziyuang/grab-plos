@@ -1,5 +1,6 @@
 __author__ = 'ZiYuan'
 
+# TODO: use sys.argc and sys.argv for the parameters
 
 from urllib.parse import urlsplit
 from utils import get_doc_tree_from_url
@@ -7,18 +8,13 @@ from plosarticle import PLOSArticle
 import logging
 import re
 import pathlib
+import os
 from multiprocessing.pool import ThreadPool
 import queue
 from threading import Thread
-import os
+import global_logger
 
-_log_file = "download.log"
-if os.path.exists(_log_file):
-    os.remove(_log_file)
-logging.basicConfig(level=logging.INFO)
 _logger = logging.getLogger(__name__)
-_logger.addHandler(logging.FileHandler(_log_file, encoding='utf8'))
-
 _article_queue = queue.Queue()
 
 
@@ -94,6 +90,8 @@ def crawl_article_urls(archive_url, save_to_folder):
                     current_folder = current_folder.parent
                 # current_folder == root/year
                 current_folder = current_folder.parent
+            else:
+                _logger.error("Issue: %s %s" % (year, month))
         # current_folder == root
         current_folder = current_folder.parent
 
@@ -107,10 +105,10 @@ def download_articles_and_save():
             file_name = re.sub(r"[\t\s]+", " ", file_name)
             try:
                 with open(str(save_to / file_name), "w", encoding="utf8") as f:
-                    f.write("\n".join([article.abstract, article.main_text]))
+                    f.write(str(article))
             except FileNotFoundError as e:
-                _logger.error(str(e))
-            msg = "Saved %s to %s/%s." % (article.title, save_to, file_name)
+                _logger.error("%s when fetching %s." % (str(e), article.url))
+            msg = "Saved \"%s\" to \"%s%s%s\"." % (article.title, save_to, os.path.sep, file_name)
             _logger.info(msg)
         _article_queue.task_done()
 
@@ -119,9 +117,9 @@ if __name__ == "__main__":
     t_spider = Thread(target=crawl_article_urls,
                       args=("http://www.ploscompbiol.org/article/browse/volume", "PLOS"))
     t_spider.start()
-    n_threads = 10
+    n_threads = 15
     for i in range(n_threads):
-        t_worker = Thread(target=download_articles_and_save)
+        t_worker = Thread(target=download_articles_and_save, daemon=True)
         t_worker.start()
     t_spider.join()
     _article_queue.join()
