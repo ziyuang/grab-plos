@@ -88,7 +88,7 @@ def crawl_article_urls(archive_url, save_to_folder):
                 # current_folder == root/year
                 current_folder = current_folder.parent
             else:
-                _logger.error("Issue: %s %s" % (year, month))
+                _logger.error("There is something wrong with issue %s %s" % (year, month))
         # current_folder == root
         current_folder = current_folder.parent
 
