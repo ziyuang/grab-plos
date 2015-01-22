@@ -10,7 +10,7 @@ Save the articles of a PLOS journal in .txt files
     Save the articles of a PLOS journal in .txt files
 
     required arguments:
-      --journal-url URL  the archive page the journal; 
+      --journal-url URL  the archive page of the journal; 
                          example: http://www.ploscompbiol.org/article/browse/volume
       --save-to FOLDER   the destination folder
     

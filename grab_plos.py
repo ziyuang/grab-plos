@@ -117,8 +117,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Save the articles of a PLOS journal in .txt files",
                                      formatter_class=argparse.ArgumentDefaultsHelpFormatter)
     parser.add_argument("--journal-url", metavar="URL",
-                        help="the archive page the journal. "
-                             "Example: http://www.ploscompbiol.org/article/browse/volume",
+                        help="the archive page of the journal; "
+                             "example: http://www.ploscompbiol.org/article/browse/volume",
                         required=True, default=argparse.SUPPRESS)
     parser.add_argument("--save-to", metavar="FOLDER", help="the destination folder",
                         required=True, default=argparse.SUPPRESS)
