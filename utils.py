@@ -1,6 +1,3 @@
-__author__ = 'ZiYuan'
-
-
 from urllib.error import URLError, HTTPError
 from urllib.request import Request, urlopen
 from lxml import html

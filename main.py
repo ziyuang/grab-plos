@@ -1,7 +1,3 @@
-__author__ = 'ZiYuan'
-
-# TODO: use sys.argc and sys.argv for the parameters
-
 from urllib.parse import urlsplit
 from utils import get_doc_tree_from_url
 from plosarticle import PLOSArticle
@@ -113,6 +109,7 @@ def download_articles_and_save():
         _article_queue.task_done()
 
 
+# TODO: use sys.argc and sys.argv for the parameters (url, folder, #threads)
 if __name__ == "__main__":
     t_spider = Thread(target=crawl_article_urls,
                       args=("http://www.ploscompbiol.org/article/browse/volume", "PLOS"))

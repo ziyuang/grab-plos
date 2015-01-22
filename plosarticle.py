@@ -1,5 +1,3 @@
-__author__ = 'ZiYuan'
-
 from utils import get_doc_tree_from_url
 import logging
 import global_logger
